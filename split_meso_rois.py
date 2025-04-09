@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from pprint import pprint
 import tifffile
@@ -272,7 +273,12 @@ def check_and_process_experiments(base_dir):
 
 # for debugging:
 def main():
-    local_repo_directory = '/home/adamranson/data/tif_meso/local_repository'
+    try:
+        local_repo_directory = sys.argv[1]
+    except:
+        print("No local repository directory provided, using default.")
+        # Set the default local repository directory
+        local_repo_directory = '/home/adamranson/data/tif_meso/local_repository'
     check_and_process_experiments(local_repo_directory)
     
 if __name__ == "__main__":
