@@ -11,7 +11,10 @@ from tifffile import read_scanimage_metadata
 import pickle
 import shutil
 
-def split_tiff_to_roi_streamed(tiff_path, roi_divisions=None, chunk_size=100, delete_raw_tif=False):
+# Global toggle for deleting the original TIFFs after splitting.
+DELETE_RAW_TIFS = True
+
+def split_tiff_to_roi_streamed(tiff_path, roi_divisions=None, chunk_size=100, delete_raw_tif=None):
     """
     Splits a multi-frame TIFF into ROI vertical segments and saves each segment as a
     streamed multi-page BigTIFF using the same compression as the source. Outputs are
@@ -24,6 +27,9 @@ def split_tiff_to_roi_streamed(tiff_path, roi_divisions=None, chunk_size=100, de
         chunk_size (int): Number of frames to process at once.
         delete_raw_tif (bool): If True, deletes the original TIFF after processing.
     """
+    if delete_raw_tif is None:
+        delete_raw_tif = DELETE_RAW_TIFS
+
     if not chunk_size or chunk_size < 1:
         raise ValueError("chunk_size must be a positive integer greater than 0")
 
@@ -160,9 +166,12 @@ def extract_full_tiff_metadata(tiff_path):
 
     return metadata
 
-def split_meso_rois(exp_dir_raw='debug',delete_raw_tifs=False):
+def split_meso_rois(exp_dir_raw='debug',delete_raw_tifs=None):
         if exp_dir_raw == 'debug':
             exp_dir_raw = '/home/adamranson/data/tif_meso/1'
+
+        if delete_raw_tifs is None:
+            delete_raw_tifs = DELETE_RAW_TIFS
 
         # make list of all scan paths
         scanpath_names = []
@@ -291,7 +300,7 @@ def check_and_process_experiments(base_dir):
                 print('')
                 print(f"Processing {exp_path}...")
                 # try:
-                split_meso_rois(exp_path, delete_raw_tifs=False)
+                split_meso_rois(exp_path)
                 # except Exception as e:
                     # print(f"Error processing {exp_path}: {e}")
             else:
