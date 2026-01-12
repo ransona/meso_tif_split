@@ -182,79 +182,87 @@ def split_meso_rois(exp_dir_raw='debug',delete_raw_tifs=False):
                     [f for f in os.listdir(path) if f.lower().endswith('.tif')],
                     key=lambda x: int(re.search(r'\d+', x).group())
                 )
-                # cycle through all tif files in the path
-                metadata_dict = extract_full_tiff_metadata(os.path.join(path,all_tif_files_in_path[0]))
-                # read scanimage meta data
-                with open(os.path.join(path,all_tif_files_in_path[0]), 'rb') as tif_meta_reader: 
-                    si_all_meta = read_scanimage_metadata(tif_meta_reader)
-                    # pprint(si_all_meta)
-                number_slices = si_all_meta[0]['SI.hStackManager.numSlices']
-                # Compile meta data for saving
-                SI_meta = {}
-                SI_meta['Meta1'] = si_all_meta
-                SI_meta['Meta2'] = metadata_dict
-                # Access ROI metadata 
-                rois = metadata_dict.get("Artist_Parsed", {}).get("RoiGroups", {}).get("imagingRoiGroup", {}).get("rois", [])
-                
-                if isinstance(rois,list):
-                    # multi rois
-                    print(f"\nFound {len(rois)} ROIs:")
-                    for i, roi in enumerate(rois):
-                        print(f"  ROI {i+1}: {roi.get('name')}")
-                        if roi.get('enable')==1:
-                            # Get the scanfields section (can be a list or single dict)
-                            scanfields = roi.get("scanfields")
-                            # Handle if scanfields is a list or a single dict
-                            if isinstance(scanfields, list):
-                                # use first scan field to get pixel resolution
-                                pixres = scanfields[0]['pixelResolutionXY']
-                                roi_divisions.append(pixres[1])
-                                for j, sf in enumerate(scanfields):
-                                    pixres = sf.get("pixelResolutionXY")
-                                    enabled = sf.get("enable")
-                                    # print(f"ROI {i+1} - Scanfield {j+1}: pixelResolutionXY = {pixres}")
-                                    # print(f"ROI {i+1} - Scanfield {j+1}: enabled = {enabled}")
 
-                            elif isinstance(scanfields, dict):
-                                pixres = scanfields.get("pixelResolutionXY")
-                                roi_divisions.append(pixres[1])
-                                # print(f"ROI {i+1}: pixelResolutionXY = {pixres}")
+                if len(all_tif_files_in_path)>0:
+                    # cycle through all tif files in the path
+                    metadata_dict = extract_full_tiff_metadata(os.path.join(path,all_tif_files_in_path[0]))
+                    # read scanimage meta data
+                    with open(os.path.join(path,all_tif_files_in_path[0]), 'rb') as tif_meta_reader: 
+                        si_all_meta = read_scanimage_metadata(tif_meta_reader)
+                        # pprint(si_all_meta)
+                    number_slices = si_all_meta[0]['SI.hStackManager.numSlices']
+                    # Compile meta data for saving
+                    SI_meta = {}
+                    SI_meta['Meta1'] = si_all_meta
+                    SI_meta['Meta2'] = metadata_dict
+                    # Access ROI metadata 
+                    rois = metadata_dict.get("Artist_Parsed", {}).get("RoiGroups", {}).get("imagingRoiGroup", {}).get("rois", [])
+                    
+                    if isinstance(rois,list):
+                        # multi rois
+                        print(f"\nFound {len(rois)} ROIs:")
+                        for i, roi in enumerate(rois):
+                            print(f"  ROI {i+1}: {roi.get('name')}")
+                            if roi.get('enable')==1:
+                                # Get the scanfields section (can be a list or single dict)
+                                scanfields = roi.get("scanfields")
+                                # Handle if scanfields is a list or a single dict
+                                if isinstance(scanfields, list):
+                                    # use first scan field to get pixel resolution
+                                    pixres = scanfields[0]['pixelResolutionXY']
+                                    roi_divisions.append(pixres[1])
+                                    for j, sf in enumerate(scanfields):
+                                        pixres = sf.get("pixelResolutionXY")
+                                        enabled = sf.get("enable")
+                                        # print(f"ROI {i+1} - Scanfield {j+1}: pixelResolutionXY = {pixres}")
+                                        # print(f"ROI {i+1} - Scanfield {j+1}: enabled = {enabled}")
+
+                                elif isinstance(scanfields, dict):
+                                    pixres = scanfields.get("pixelResolutionXY")
+                                    roi_divisions.append(pixres[1])
+                                    # print(f"ROI {i+1}: pixelResolutionXY = {pixres}")
+                                else:
+                                    print(f"ROI {i+1}: No scanfields found.")
+
+
+                        # calculate the lines to discard between the roi divisions
+                        if len(roi_divisions)>1:
+                            spacer_pixels = (metadata_dict['ImageLength']-sum(roi_divisions))/(len(roi_divisions)-1)
+                            if round(spacer_pixels) != spacer_pixels:
+                                raise ValueError("The spacer pixels are not an integer. Check the metadata.")
                             else:
-                                print(f"ROI {i+1}: No scanfields found.")
-
-
-                    # calculate the lines to discard between the roi divisions
-                    if len(roi_divisions)>1:
-                        spacer_pixels = (metadata_dict['ImageLength']-sum(roi_divisions))/(len(roi_divisions)-1)
-                        if round(spacer_pixels) != spacer_pixels:
-                            raise ValueError("The spacer pixels are not an integer. Check the metadata.")
+                                spacer_pixels = int(spacer_pixels)
                         else:
-                            spacer_pixels = int(spacer_pixels)
-                    else:
-                        spacer_pixels = 0
+                            spacer_pixels = 0
 
-                    roi_ranges = calculate_roi_ranges_from_heights(roi_divisions, spacer_pixels=spacer_pixels)             
+                        roi_ranges = calculate_roi_ranges_from_heights(roi_divisions, spacer_pixels=spacer_pixels)             
 
-                    for tif_file in all_tif_files_in_path:
-                        full_tif_path = os.path.join(path,tif_file)
-                        split_tiff_to_roi_streamed(full_tif_path, roi_divisions=roi_ranges, chunk_size=100, delete_raw_tif=delete_raw_tifs)
+                        for tif_file in all_tif_files_in_path:
+                            full_tif_path = os.path.join(path,tif_file)
+                            split_tiff_to_roi_streamed(full_tif_path, roi_divisions=roi_ranges, chunk_size=100, delete_raw_tif=delete_raw_tifs)
 
-                elif isinstance(rois,dict):
-                    # there is only one roi so just copy it to an roi folder and you're done
-                    print('Only one roi so moving data to roi folder')
-                    r001_path = os.path.join(path,"R001")
-                    os.makedirs(r001_path,exist_ok=True)
-                    # Move .tif files
-                    for filename in os.listdir(path):
-                        if filename.lower().endswith(".tif"):
-                            src = os.path.join(path, filename)
-                            dst = os.path.join(r001_path, filename)
-                            print('Moving ' + src)
-                            shutil.move(src, dst)
+                    elif isinstance(rois,dict):
+                        # there is only one roi so just copy it to an roi folder and you're done
+                        # scanfields = rois.get("scanfields")
+                        # pixres = scanfields.get("pixelResolutionXY")
+                        # roi_divisions.append(pixres[1])
+                        print('Only one roi so moving data to roi folder')
+                        r001_path = os.path.join(path,"R001")
+                        os.makedirs(r001_path,exist_ok=True)
+                        # Move .tif files
+                        for filename in os.listdir(path):
+                            if filename.lower().endswith(".tif"):
+                                src = os.path.join(path, filename)
+                                dst = os.path.join(r001_path, filename)
+                                print('Moving ' + src)
+                                shutil.move(src, dst)
+                                print('Done')
 
 
-                # dump SI_meta to a np file
-                with open(os.path.join(path, 'SI_meta.pickle'), 'wb') as f: pickle.dump(SI_meta, f)
+                    # dump SI_meta to a np file
+                    with open(os.path.join(path, 'SI_meta.pickle'), 'wb') as f: pickle.dump(SI_meta, f)
+                else:
+                    print('Found path but with no tif files within')
 
 def check_and_process_experiments(base_dir):
     for animal_id in os.listdir(base_dir):
